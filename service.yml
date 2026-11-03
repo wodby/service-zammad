@@ -1,0 +1,305 @@
+name: zammad
+icon: zammad
+type: service
+title: Zammad
+guidance: GUIDANCE.md
+# The background worker must run as a single replica, so the service runs one
+# replica of each component.
+scalable: false
+
+labels:
+- zammad
+- helpdesk
+
+options:
+- version: '7.2'
+  tag: 7.2.2-0035
+  default: true
+
+endpoints:
+- name: zammad
+  main: true
+  ports:
+  - name: http
+    number: 8080
+    protocol: http
+    main: true
+    routeDefaults:
+      # The browser keeps WebSocket connections to /ws and /cable open.
+      request_timeout: 0s
+      backend_request_timeout: 0s
+
+settings:
+- name: admin_email
+  title: Administrator email
+  description: Sign-in email of the first Zammad administrator. Used only when no administrator exists.
+  placeholder: admin@example.com
+  required: true
+  var: ZAMMAD_ADMIN_EMAIL
+- name: admin_firstname
+  title: Administrator first name
+  description: First name of the first Zammad administrator. Used only when no administrator exists.
+  default: Admin
+  var: ZAMMAD_ADMIN_FIRSTNAME
+- name: admin_lastname
+  title: Administrator last name
+  description: Last name of the first Zammad administrator. Used only when no administrator exists.
+  var: ZAMMAD_ADMIN_LASTNAME
+
+tokens:
+# Zammad's default password policy needs upper-case and lower-case letters and a
+# digit, so the first 12 characters guarantee them.
+- name: admin_password
+  generate:
+    regex: '[A-Z]{4}[a-z]{4}[0-9]{4}[A-Za-z0-9]{20}'
+
+env:
+- name: ZAMMAD_FQDN
+  value: '{{service.primaryHost}}'
+- name: ZAMMAD_HTTP_TYPE
+  value: https
+- name: ZAMMAD_ADMIN_PASSWORD
+  value: '{{admin_password}}'
+  secret: true
+# Requests reach Zammad through the route gateway and Zammad's NGINX, both inside
+# the cluster network. Trusting private ranges lets Zammad log the client address.
+- name: RAILS_TRUSTED_PROXIES
+  value: 127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,fc00::/7
+
+links:
+- name: db
+  title: PostgreSQL
+  required: true
+  selectors:
+  - type: db
+    labels:
+    - postgres
+  env:
+  # Zammad's processes use up to 50 database connections each.
+  - name: DATABASE_URL
+    value: '{{link.database.url}}?pool=50'
+    secret: true
+  # The image's startup checks wait for these before starting Zammad.
+  - name: POSTGRESQL_HOST
+    value: '{{link.database.host}}'
+  - name: POSTGRESQL_PORT
+    value: '{{link.database.port}}'
+- name: redis
+  title: Redis
+  required: true
+  selectors:
+  - type: datastore
+    labels:
+    - redis
+  env:
+  - name: REDIS_URL
+    value: 'redis://:{{link.tokens.password}}@{{link.host}}:{{link.port}}/0'
+    secret: true
+- name: memcached
+  title: Memcached
+  required: true
+  selectors:
+  - type: datastore
+    labels:
+    - memcached
+  env:
+  - name: MEMCACHE_SERVERS
+    value: '{{link.host}}:{{link.port}}'
+- name: elasticsearch
+  title: Elasticsearch
+  selectors:
+  - type: search
+    labels:
+    - elasticsearch
+  env:
+  - name: ELASTICSEARCH_HOST
+    value: '{{link.host}}'
+  - name: ELASTICSEARCH_PORT
+    value: '{{link.port}}'
+  - name: ELASTICSEARCH_SCHEMA
+    value: http
+  - name: ELASTICSEARCH_USER
+    value: elastic
+  - name: ELASTICSEARCH_PASS
+    value: '{{link.tokens.password}}'
+    secret: true
+- name: sendmail
+  title: Mail transfer agent
+  selectors:
+  - type: service
+    labels:
+    - smtpd
+  env:
+  - name: SMTP_HOST
+    value: '{{link.host}}'
+  - name: SMTP_PORT
+    value: '{{link.port}}'
+
+integrations:
+- name: variable
+  title: Additional Zammad environment variables
+  type: variable
+  required: false
+  multiple: true
+
+deployment:
+  strategy: rolling
+  minReady: 10s
+  progressDeadline: 30m
+  shutdownGracePeriod: 30s
+
+helm:
+  name: wodby
+  source: oci://registry-1.docker.io/wodby/zammad
+  chart: oci://registry-1.docker.io/wodby/zammad
+  version: 0.1.0
+  valueMappings:
+    replicas: replicaCount
+    nameOverride: nameOverride
+    fullnameOverride: fullnameOverride
+    serviceAccountName: serviceAccount.name
+    serviceAccountCreate: serviceAccount.create
+
+workloads:
+- name: nginx
+  kind: deployment
+  primary: true
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{helm.release}}'
+      app.kubernetes.io/component: nginx
+  helm:
+    labels: components.nginx.podLabels
+    annotations: components.nginx.podAnnotations
+    volumes: components.nginx.extraVolumes
+    sidecars: components.nginx.sidecars
+    strategy: components.nginx.strategy
+    minReady: components.nginx.minReadySeconds
+    progressDeadline: components.nginx.progressDeadlineSeconds
+    shutdownGracePeriod: components.nginx.terminationGracePeriodSeconds
+  containers:
+  - name: nginx
+    image: ghcr.io/zammad/zammad
+    resources:
+      request:
+        cpu: 100
+        memory: 64
+      limit:
+        cpu: 500
+        memory: 256
+    helm:
+      env: components.nginx.env
+      resources: components.nginx.resources
+      mounts: components.nginx.extraVolumeMounts
+      image:
+        registry: image.registry
+        repository: image.repository
+        tag: image.tag
+        pullPolicy: image.pullPolicy
+- name: railsserver
+  kind: deployment
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{helm.release}}'
+      app.kubernetes.io/component: railsserver
+  helm:
+    labels: components.railsserver.podLabels
+    annotations: components.railsserver.podAnnotations
+    volumes: components.railsserver.extraVolumes
+    sidecars: components.railsserver.sidecars
+    strategy: components.railsserver.strategy
+    minReady: components.railsserver.minReadySeconds
+    progressDeadline: components.railsserver.progressDeadlineSeconds
+    shutdownGracePeriod: components.railsserver.terminationGracePeriodSeconds
+  containers:
+  - name: railsserver
+    image: ghcr.io/zammad/zammad
+    resources:
+      request:
+        cpu: 500
+        memory: 768
+      limit:
+        cpu: 2000
+        memory: 2048
+    helm:
+      env: components.railsserver.env
+      resources: components.railsserver.resources
+      mounts: components.railsserver.extraVolumeMounts
+      image:
+        registry: image.registry
+        repository: image.repository
+        tag: image.tag
+        pullPolicy: image.pullPolicy
+- name: websocket
+  kind: deployment
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{helm.release}}'
+      app.kubernetes.io/component: websocket
+  helm:
+    labels: components.websocket.podLabels
+    annotations: components.websocket.podAnnotations
+    volumes: components.websocket.extraVolumes
+    sidecars: components.websocket.sidecars
+    strategy: components.websocket.strategy
+    minReady: components.websocket.minReadySeconds
+    progressDeadline: components.websocket.progressDeadlineSeconds
+    shutdownGracePeriod: components.websocket.terminationGracePeriodSeconds
+  containers:
+  - name: websocket
+    image: ghcr.io/zammad/zammad
+    resources:
+      request:
+        cpu: 100
+        memory: 384
+      limit:
+        cpu: 1000
+        memory: 1024
+    helm:
+      env: components.websocket.env
+      resources: components.websocket.resources
+      mounts: components.websocket.extraVolumeMounts
+      image:
+        registry: image.registry
+        repository: image.repository
+        tag: image.tag
+        pullPolicy: image.pullPolicy
+# The scheduler pod's init container installs or migrates the database on every
+# deploy. The other components wait until the database is current.
+- name: scheduler
+  kind: deployment
+  # Two background workers must never run at once.
+  deployment:
+    strategy: recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: '{{helm.release}}'
+      app.kubernetes.io/component: scheduler
+  helm:
+    labels: components.scheduler.podLabels
+    annotations: components.scheduler.podAnnotations
+    volumes: components.scheduler.extraVolumes
+    sidecars: components.scheduler.sidecars
+    strategy: components.scheduler.strategy
+    minReady: components.scheduler.minReadySeconds
+    progressDeadline: components.scheduler.progressDeadlineSeconds
+    shutdownGracePeriod: components.scheduler.terminationGracePeriodSeconds
+  containers:
+  - name: scheduler
+    image: ghcr.io/zammad/zammad
+    resources:
+      request:
+        cpu: 300
+        memory: 768
+      limit:
+        cpu: 2000
+        memory: 2048
+    helm:
+      env: components.scheduler.env
+      resources: components.scheduler.resources
+      mounts: components.scheduler.extraVolumeMounts
+      image:
+        registry: image.registry
+        repository: image.repository
+        tag: image.tag
+        pullPolicy: image.pullPolicy
