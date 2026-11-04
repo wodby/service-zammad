@@ -25,7 +25,7 @@ configuration for Zammad.
 | Endpoints | `zammad`: HTTP 8080 (main) |
 | Service links | PostgreSQL (`db`), required; Redis (`redis`), required; Memcached (`memcached`), required; Elasticsearch (`elasticsearch`), optional; Mail transfer agent (`sendmail`), optional |
 | Application build | Not buildable from application source |
-| Helm | chart `oci://registry-1.docker.io/wodby/zammad`; version `0.1.0` |
+| Helm | chart `oci://registry-1.docker.io/wodby/zammad`; version `0.2.0` |
 | Configuration and operations | 3 settings, 1 integration slot, 0 volumes, 0 actions |
 
 ## Use this service
