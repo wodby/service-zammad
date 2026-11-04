@@ -152,7 +152,7 @@ helm:
   name: wodby
   source: oci://registry-1.docker.io/wodby/zammad
   chart: oci://registry-1.docker.io/wodby/zammad
-  version: 0.1.0
+  version: 0.2.0
   valueMappings:
     replicas: replicaCount
     nameOverride: nameOverride
@@ -188,7 +188,10 @@ workloads:
         cpu: 500
         memory: 256
     helm:
-      env: components.nginx.env
+      # Link, setting and integration variables reach only the primary
+      # container, so its env is the chart's shared env that every component
+      # receives.
+      env: env
       resources: components.nginx.resources
       mounts: components.nginx.extraVolumeMounts
       image:
