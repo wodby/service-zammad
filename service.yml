@@ -182,8 +182,8 @@ workloads:
     image: ghcr.io/zammad/zammad
     resources:
       request:
-        cpu: 100
-        memory: 64
+        cpu: 10
+        memory: 32
       limit:
         cpu: 500
         memory: 256
@@ -219,8 +219,8 @@ workloads:
     image: ghcr.io/zammad/zammad
     resources:
       request:
-        cpu: 500
-        memory: 768
+        cpu: 10
+        memory: 320
       limit:
         cpu: 2000
         memory: 2048
@@ -253,8 +253,8 @@ workloads:
     image: ghcr.io/zammad/zammad
     resources:
       request:
-        cpu: 100
-        memory: 384
+        cpu: 10
+        memory: 256
       limit:
         cpu: 1000
         memory: 1024
@@ -292,8 +292,8 @@ workloads:
     image: ghcr.io/zammad/zammad
     resources:
       request:
-        cpu: 300
-        memory: 768
+        cpu: 10
+        memory: 336
       limit:
         cpu: 2000
         memory: 2048
