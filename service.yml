@@ -32,18 +32,21 @@ endpoints:
 settings:
 - name: admin_email
   title: Administrator email
-  description: Sign-in email of the first Zammad administrator. Used only when no administrator exists.
+  description: Sign-in email of the first Zammad administrator. Used only when 
+    no administrator exists.
   placeholder: admin@example.com
   required: true
   var: ZAMMAD_ADMIN_EMAIL
 - name: admin_firstname
   title: Administrator first name
-  description: First name of the first Zammad administrator. Used only when no administrator exists.
+  description: First name of the first Zammad administrator. Used only when no 
+    administrator exists.
   default: Admin
   var: ZAMMAD_ADMIN_FIRSTNAME
 - name: admin_lastname
   title: Administrator last name
-  description: Last name of the first Zammad administrator. Used only when no administrator exists.
+  description: Last name of the first Zammad administrator. Used only when no 
+    administrator exists.
   var: ZAMMAD_ADMIN_LASTNAME
 
 tokens:
@@ -64,7 +67,8 @@ env:
 # Requests reach Zammad through the route gateway and Zammad's NGINX, both inside
 # the cluster network. Trusting private ranges lets Zammad log the client address.
 - name: RAILS_TRUSTED_PROXIES
-  value: 127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,fc00::/7
+  value: 
+    127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10,fc00::/7
 
 links:
 - name: db
@@ -152,7 +156,7 @@ helm:
   name: wodby
   source: oci://registry-1.docker.io/wodby/zammad
   chart: oci://registry-1.docker.io/wodby/zammad
-  version: 0.2.1
+  version: 0.2.2
   valueMappings:
     replicas: replicaCount
     nameOverride: nameOverride
